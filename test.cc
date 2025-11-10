@@ -39,13 +39,8 @@ namespace test {
 class HttpTest : public ::testing::Test {
 
  protected:
-  std::condition_variable cv_;
-  std::mutex cv_mtx_;
-  void SetUp() override {
-  }
+  void SetUp() override {}
   void TearDown() override {}
-
-  void GetSwitchCallback() {}
 };
 
 TEST_F(HttpTest, GET) {
@@ -60,7 +55,61 @@ TEST_F(HttpTest, GET) {
     cv.notify_all();
   };
   opt.on_message = [&](const Message& msg) {
-    LOGI("on_message: %.*s", msg.body.size(), msg.body.data());
+    const auto& hm = static_cast<const HttpMessage&>(msg);
+    LOGI("on_message status=%d body:%.*s", hm.status, hm.body.size(),
+         hm.body.data());
+  };
+  opt.on_error = [](std::string_view msg) {
+    LOGI("on_error: %.*s", msg.size(), msg.data());
+  };
+  client.Create<HttpConnect>(std::move(opt));
+  std::unique_lock<std::mutex> lk(cv_mtx);
+  cv.wait_for(lk, std::chrono::seconds(10));
+}
+
+TEST_F(HttpTest, POST) {
+  std::condition_variable cv;
+  std::mutex cv_mtx;
+  IClient client;
+  HttpOptions opt = {.method = "POST"};
+  opt.body = "{\"user\":\"chaohui\", \"id\":42}";
+  opt.url = "https://httpbin.org/post";
+  opt.headers = {{"Content-Type", "application/json"},
+                 {"Content-Length", std::to_string(opt.body->size())}};
+  opt.cert = "/etc/ssl/certs/ca-certificates.crt";
+  opt.on_closed = [&]() {
+    LOGI("on_closed");
+    cv.notify_all();
+  };
+  opt.on_message = [&](const Message& msg) {
+    const auto& hm = static_cast<const HttpMessage&>(msg);
+    LOGI("on_message: status=%d body:%.*s", hm.status, hm.body.size(),
+         hm.body.data());
+  };
+  opt.on_error = [](std::string_view msg) {
+    LOGI("on_error: %.*s", msg.size(), msg.data());
+  };
+  client.Create<HttpConnect>(std::move(opt));
+  std::unique_lock<std::mutex> lk(cv_mtx);
+  cv.wait_for(lk, std::chrono::seconds(10));
+}
+
+TEST_F(HttpTest, PostFile) {
+  std::condition_variable cv;
+  std::mutex cv_mtx;
+  IClient client;
+  HttpOptions opt = {.method = "POST"};
+  opt.url = "https://httpbin.org/post";
+  opt.cert = "/etc/ssl/certs/ca-certificates.crt";
+  opt.file = "./CMakeCache.txt";
+  opt.on_closed = [&]() {
+    LOGI("on_closed");
+    cv.notify_all();
+  };
+  opt.on_message = [&](const Message& msg) {
+    const auto& hm = static_cast<const HttpMessage&>(msg);
+    LOGI("on_message: status=%d body:%.*s", hm.status, hm.body.size(),
+         hm.body.data());
   };
   opt.on_error = [](std::string_view msg) {
     LOGI("on_error: %.*s", msg.size(), msg.data());

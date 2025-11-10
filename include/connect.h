@@ -77,9 +77,9 @@ struct MqttOption : public Options {
 };
 
 class Base {
+ friend class IClient;
  public:
   using Ptr = std::shared_ptr<Base>;
-
   virtual void Init(void* data) = 0;
   virtual void Handler(int ev, void* ev_data) = 0;
 };

@@ -25,7 +25,6 @@
 namespace mg {
 
 static void EventHandler(struct mg_connection* c, int ev, void* ev_data) {
-  LOGI("%s ev=%d", __func__, ev);
   if (auto* conn = static_cast<Base*>(c->fn_data); conn) {
     conn->Handler(ev, ev_data);
   } else {
@@ -77,11 +76,22 @@ void TcpConnect::Handler(int ev, void* ev_data) {
 HttpConnect::HttpConnect(HttpOptions options)
     : IConnect<HttpOptions>(std::move(options)) {
   if (options_.file) {
-    mgfd_ = mg_fs_open(&mg_fs_posix, options_.file->c_str(), MG_FS_READ);
+    auto* mgfd = mg_fs_open(&mg_fs_posix, options_.file->c_str(), MG_FS_READ);
+    if (mgfd) {
+      time_t tm;
+      size_t fs;
+      mgfd->fs->st(options_.file->c_str(), &fs, &tm);
+      options_.headers.emplace(
+          std::make_pair("Content-Type", "application/octet-stream"));
+      options_.headers.emplace(
+          std::make_pair("Content-Length", std::to_string(fs)));
+      mgfd_ = mgfd;
+    }
   }
 }
 
 void HttpConnect::Handler(int ev, void* ev_data) {
+  auto* c = static_cast<struct mg_connection*>(mgc_);
   if (ev == MG_EV_CONNECT) {
     Request();
   } else if (ev == MG_EV_HTTP_MSG && options_.on_message) {
@@ -90,9 +100,24 @@ void HttpConnect::Handler(int ev, void* ev_data) {
                        .headers = ReverseParseHeaders(hm)};
     msg.body = std::string_view(hm->body.buf, hm->body.len);
     options_.on_message(msg);
+  } else if (ev == MG_EV_WRITE && mgfd_ != nullptr) {
+    char buf[MG_IO_SIZE];
+    size_t len = MG_IO_SIZE - c->send.len;
+    auto* fd = static_cast<struct mg_fd*>(mgfd_);
+    size_t rlen = fd->fs->rd(fd->fd, buf, len);
+    if (rlen) {
+      mg_send(c, buf, rlen);
+      LOGI("post size=%u", rlen);
+    } else {
+      mg_fs_close(fd);
+      mgfd_ = nullptr;
+    }
   } else if (ev == MG_EV_ERROR && options_.on_error) {
     options_.on_error(std::string_view(static_cast<const char*>(ev_data)));
   } else if (ev == MG_EV_CLOSE && options_.on_closed) {
+    if (mgfd_) {
+      mg_fs_close(static_cast<struct mg_fd*>(mgfd_));
+    }
     options_.on_closed();
   }
 }
