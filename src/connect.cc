@@ -25,7 +25,7 @@
 namespace mg {
 
 static void EventHandler(struct mg_connection* c, int ev, void* ev_data) {
-  if (auto* conn = static_cast<Base*>(c->fn_data); conn) {
+  if (auto* conn = static_cast<IConnect*>(c->fn_data); conn) {
     conn->Handler(ev, ev_data);
   } else {
     c->is_draining = 1;
@@ -43,15 +43,15 @@ static HttpHeaders ReverseParseHeaders(struct mg_http_message* hm) {
   return headers;
 }
 
-TcpConnect::TcpConnect(Options options)
-    : IConnect<Options>(std::move(options)) {}
-
-bool TcpConnect::Send(std::string_view body) {
+bool IConnect::Send(std::string_view body) {
   auto* c = static_cast<struct mg_connection*>(mgc_);
   if (!c)
     return false;
   return mg_send(c, body.data(), body.size());
 }
+
+TcpConnect::TcpConnect(Options options)
+    : IConnectImpl<Options>(std::move(options)) {}
 
 void TcpConnect::Init(void* data) {
   struct mg_mgr* mgr = static_cast<mg_mgr*>(data);
@@ -62,7 +62,9 @@ void TcpConnect::Init(void* data) {
 
 void TcpConnect::Handler(int ev, void* ev_data) {
   auto* c = static_cast<struct mg_connection*>(mgc_);
-  if (ev == MG_EV_READ && options_.on_message) {
+  if (ev == MG_EV_CONNECT && options_.on_connect) {
+    options_.on_connect(this);
+  } else if (ev == MG_EV_READ && options_.on_message) {
     Message msg = {std::string_view(reinterpret_cast<const char*>(c->recv.buf),
                                     c->recv.len)};
     options_.on_message(msg);
@@ -74,7 +76,7 @@ void TcpConnect::Handler(int ev, void* ev_data) {
 }
 
 HttpConnect::HttpConnect(HttpOptions options)
-    : IConnect<HttpOptions>(std::move(options)) {
+    : IConnectImpl<HttpOptions>(std::move(options)) {
   if (options_.file) {
     auto* mgfd = mg_fs_open(&mg_fs_posix, options_.file->c_str(), MG_FS_READ);
     if (mgfd) {
@@ -147,7 +149,7 @@ void HttpConnect::Request() {
             options_.method.c_str(), uri, (int)host.len, host.buf,
             hstr.c_str());
   if (options_.body) {
-    mg_send(c, options_.body->data(), options_.body->size());
+    IConnect::Send(*options_.body);
   }
 }
 

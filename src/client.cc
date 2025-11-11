@@ -24,7 +24,7 @@
 
 namespace mg {
 
-bool IClient::Add(Base::Ptr conn) {
+bool IClient::Add(IConnect::Ptr conn) {
   std::lock_guard<std::mutex> guard(mtx_);
   auto ret = sess_set_.emplace(conn);
   if (ret.second) {
@@ -34,9 +34,9 @@ bool IClient::Add(Base::Ptr conn) {
   return false;
 }
 
-Base* IClient::Pop() {
+IConnect* IClient::Pop() {
   std::lock_guard<std::mutex> guard(mtx_);
-  Base* p = nullptr;
+  IConnect* p = nullptr;
   if (!sess_queue_.empty()) {
     p = sess_queue_.front();
     sess_queue_.pop();
@@ -45,7 +45,7 @@ Base* IClient::Pop() {
 }
 
 bool IClient::EventLoop() {
-  if (Base* p = Pop(); p)
+  if (IConnect* p = Pop(); p)
     p->Init(static_cast<void*>(&mgr_));
 
   mg_mgr_poll(&mgr_, 50);

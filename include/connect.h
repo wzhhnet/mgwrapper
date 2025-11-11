@@ -43,6 +43,7 @@
 namespace mg {
 
 using HttpHeaders = std::map<std::string, std::string>;
+class IConnect;
 
 struct Message {
   std::string_view body;
@@ -60,6 +61,7 @@ struct MqttMessage : public Message {
 struct Options {
   std::string url;
   std::function<void()> on_closed;
+  std::function<void(IConnect*)> on_connect;
   std::function<void(const Message&)> on_message;
   std::function<void(std::string_view)> on_error;
 };
@@ -76,39 +78,41 @@ struct MqttOption : public Options {
   //TODO
 };
 
-class Base {
+class IConnect {
  friend class IClient;
  public:
-  using Ptr = std::shared_ptr<Base>;
+  using Ptr = std::shared_ptr<IConnect>;
   virtual void Init(void* data) = 0;
   virtual void Handler(int ev, void* ev_data) = 0;
+  virtual bool Send(std::string_view body);
+
+ protected:
+   void* mgc_ = nullptr;
 };
 
 template <class OPTIONS>
-class IConnect : public Base {
+class IConnectImpl : public IConnect {
  public:
-  IConnect(OPTIONS options) : options_(std::move(options)) {}
+  IConnectImpl(OPTIONS options) : options_(std::move(options)) {}
 
  private:
   virtual void Init(void* data) = 0;
   virtual void Handler(int ev, void* ev_data) = 0;
 
  protected:
-  void* mgc_ = nullptr;
   OPTIONS options_;
 };
 
-class TcpConnect : public IConnect<Options> {
+class TcpConnect : public IConnectImpl<Options> {
  public:
   TcpConnect(Options options);
-  bool Send(std::string_view body);
 
  private:
   virtual void Init(void* data) override;
   virtual void Handler(int ev, void* ev_data) override;
 };
 
-class HttpConnect : public IConnect<HttpOptions> {
+class HttpConnect : public IConnectImpl<HttpOptions> {
  public:
   HttpConnect(HttpOptions options);
 

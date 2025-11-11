@@ -34,7 +34,7 @@ class IClient : public ILoop {
   virtual ~IClient() { Stop(); }
 
   template <class CONNECT, class... Args>
-  Base::Ptr Create(Args&&... args) {
+  IConnect::Ptr Create(Args&&... args) {
     auto c = std::make_shared<CONNECT>(std::forward<Args>(args)...);
     if (Add(c))
       return c;
@@ -43,13 +43,13 @@ class IClient : public ILoop {
 
  private:
   virtual bool EventLoop() override;
-  bool Add(Base::Ptr conn);
-  Base* Pop();
+  bool Add(IConnect::Ptr conn);
+  IConnect* Pop();
 
  private:
   std::mutex mtx_;
-  std::set<Base::Ptr> sess_set_;
-  std::queue<Base*> sess_queue_;
+  std::set<IConnect::Ptr> sess_set_;
+  std::queue<IConnect*> sess_queue_;
 };
 
 }  // namespace mg

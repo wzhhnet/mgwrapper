@@ -36,14 +36,41 @@ using namespace mg;
 
 namespace test {
 
-class HttpTest : public ::testing::Test {
+class ConnectTest : public ::testing::Test {
 
  protected:
   void SetUp() override {}
   void TearDown() override {}
 };
 
-TEST_F(HttpTest, GET) {
+TEST_F(ConnectTest, Tcp) {
+  std::condition_variable cv;
+  std::mutex cv_mtx;
+  IClient client;
+  Options opt = {.url = "tcpbin.com:4242",
+                 .on_closed = [&]() { LOGI("on_closed"); },
+                 .on_connect =
+                     [](IConnect* c) {
+                       LOGI("on_connect");
+                       auto r = c->Send("this is a tcp request\n");
+                       LOGI("r = %d", r);
+                     },
+                 .on_message =
+                     [&](const Message& msg) {
+                       LOGI("on_message body:%.*s", msg.body.size(),
+                            msg.body.data());
+                       cv.notify_all();
+                     },
+                 .on_error =
+                     [](std::string_view msg) {
+                       LOGI("on_error: %.*s", msg.size(), msg.data());
+                     }};
+  client.Create<TcpConnect>(std::move(opt));
+  std::unique_lock<std::mutex> lk(cv_mtx);
+  cv.wait_for(lk, std::chrono::seconds(10));
+}  // namespace test
+
+TEST_F(ConnectTest, HttpGet) {
   std::condition_variable cv;
   std::mutex cv_mtx;
   IClient client;
@@ -67,7 +94,7 @@ TEST_F(HttpTest, GET) {
   cv.wait_for(lk, std::chrono::seconds(10));
 }
 
-TEST_F(HttpTest, POST) {
+TEST_F(ConnectTest, HttpPost) {
   std::condition_variable cv;
   std::mutex cv_mtx;
   IClient client;
@@ -94,7 +121,7 @@ TEST_F(HttpTest, POST) {
   cv.wait_for(lk, std::chrono::seconds(10));
 }
 
-TEST_F(HttpTest, PostFile) {
+TEST_F(ConnectTest, HttpPostFile) {
   std::condition_variable cv;
   std::mutex cv_mtx;
   IClient client;
