@@ -67,22 +67,23 @@ void TcpConnect::Handler(int ev, void* ev_data) {
   } else if (ev == MG_EV_READ && options_.on_message) {
     Message msg = {std::string_view(reinterpret_cast<const char*>(c->recv.buf),
                                     c->recv.len)};
-    options_.on_message(msg);
+    options_.on_message(this, msg);
     /// Tell Mongoose we've consumed data
     mg_iobuf_del(&c->recv, 0, c->recv.len);
   } else if (ev == MG_EV_ERROR && options_.on_error) {
-    options_.on_error(std::string_view(static_cast<const char*>(ev_data)));
+    options_.on_error(this,
+                      std::string_view(static_cast<const char*>(ev_data)));
   }
 }
 
 HttpConnect::HttpConnect(HttpOptions options)
     : IConnectImpl<HttpOptions>(std::move(options)) {
-  if (options_.file) {
-    auto* mgfd = mg_fs_open(&mg_fs_posix, options_.file->c_str(), MG_FS_READ);
+  if (!options_.file.empty()) {
+    auto* mgfd = mg_fs_open(&mg_fs_posix, options_.file.c_str(), MG_FS_READ);
     if (mgfd) {
       time_t tm;
       size_t fs;
-      mgfd->fs->st(options_.file->c_str(), &fs, &tm);
+      mgfd->fs->st(options_.file.c_str(), &fs, &tm);
       options_.headers.emplace(
           std::make_pair("Content-Type", "application/octet-stream"));
       options_.headers.emplace(
@@ -101,7 +102,7 @@ void HttpConnect::Handler(int ev, void* ev_data) {
     HttpMessage msg = {.status = mg_http_status(hm),
                        .headers = ReverseParseHeaders(hm)};
     msg.body = std::string_view(hm->body.buf, hm->body.len);
-    options_.on_message(msg);
+    options_.on_message(this, msg);
   } else if (ev == MG_EV_WRITE && mgfd_ != nullptr) {
     char buf[MG_IO_SIZE];
     size_t len = MG_IO_SIZE - c->send.len;
@@ -115,7 +116,8 @@ void HttpConnect::Handler(int ev, void* ev_data) {
       mgfd_ = nullptr;
     }
   } else if (ev == MG_EV_ERROR && options_.on_error) {
-    options_.on_error(std::string_view(static_cast<const char*>(ev_data)));
+    options_.on_error(this,
+                      std::string_view(static_cast<const char*>(ev_data)));
   } else if (ev == MG_EV_CLOSE && options_.on_closed) {
     if (mgfd_) {
       mg_fs_close(static_cast<struct mg_fd*>(mgfd_));
@@ -136,8 +138,8 @@ void HttpConnect::Request() {
   struct mg_str host = mg_url_host(options_.url.c_str());
   const char* uri = mg_url_uri(options_.url.c_str());
   auto hstr = ParseHeaders();
-  if (options_.cert && mg_url_is_ssl(options_.url.c_str())) {
-    struct mg_tls_opts opts = {.ca = mg_unpacked(options_.cert->c_str()),
+  if (mg_url_is_ssl(options_.url.c_str())) {
+    struct mg_tls_opts opts = {.ca = mg_unpacked(options_.cert.c_str()),
                                .name = host};
     mg_tls_init(c, &opts);
   }
@@ -148,8 +150,8 @@ void HttpConnect::Request() {
             "\r\n",
             options_.method.c_str(), uri, (int)host.len, host.buf,
             hstr.c_str());
-  if (options_.body) {
-    IConnect::Send(*options_.body);
+  if (!options_.body.empty()) {
+    IConnect::Send(options_.body);
   }
 }
 
@@ -159,6 +161,58 @@ std::string HttpConnect::ParseHeaders() {
     hstr += key + ": " + value + "\r\n";
   }
   return hstr;
+}
+
+MqttConnect::MqttConnect(MqttOptions options)
+    : IConnectImpl<MqttOptions>(std::move(options)) {}
+
+void MqttConnect::Init(void* data) {
+  struct mg_mgr* mgr = static_cast<mg_mgr*>(data);
+  struct mg_mqtt_opts opts = {
+      .user = mg_str(options_.user.c_str()),
+      .pass = mg_str(options_.pass.c_str()),
+      .qos = options_.qos,
+  };
+  auto* c = mg_mqtt_connect(mgr, options_.url.c_str(), &opts, &EventHandler,
+                            static_cast<void*>(this));
+  mgc_ = static_cast<void*>(c);
+}
+
+void MqttConnect::Handler(int ev, void* ev_data) {
+  auto* c = static_cast<struct mg_connection*>(mgc_);
+  if (ev == MG_EV_MQTT_OPEN) {
+    if (options_.on_mqtt_open) {
+      options_.on_mqtt_open(this);
+    } else {
+      struct mg_mqtt_opts opt = {
+          .user = mg_str(options_.user.c_str()),
+          .pass = mg_str(options_.pass.c_str()),
+          .qos = options_.qos,
+      };
+      for (const auto& topic : options_.topics) {
+        opt.topic = mg_str(topic.c_str());
+        mg_mqtt_sub(c, &opt);
+        LOGI("subscribe topic:%s", topic.c_str());
+      }
+    }
+  } else if (ev == MG_EV_MQTT_MSG && options_.on_message) {
+    struct mg_mqtt_message* mm = (struct mg_mqtt_message*)ev_data;
+    MqttMessage msg = {.topic = std::string_view(mm->topic.buf, mm->topic.len)};
+    msg.body = std::string_view(mm->data.buf, mm->data.len);
+    options_.on_message(this, msg);
+  }
+}
+
+void MqttConnect::Publish(MqttMessage msg) {
+  auto* c = static_cast<struct mg_connection*>(mgc_);
+  if (c) {
+    struct mg_mqtt_opts pub_opts = {
+        .topic = mg_str(msg.topic.data()),
+        .message = mg_str(msg.body.data()),
+        .qos = options_.qos,
+    };
+    mg_mqtt_pub(c, &pub_opts);
+  }
 }
 
 }  // namespace mg

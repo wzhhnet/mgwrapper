@@ -56,13 +56,13 @@ TEST_F(ConnectTest, Tcp) {
                        LOGI("r = %d", r);
                      },
                  .on_message =
-                     [&](const Message& msg) {
+                     [&](IConnect* c, const Message& msg) {
                        LOGI("on_message body:%.*s", msg.body.size(),
                             msg.body.data());
                        cv.notify_all();
                      },
                  .on_error =
-                     [](std::string_view msg) {
+                     [](IConnect* c, std::string_view msg) {
                        LOGI("on_error: %.*s", msg.size(), msg.data());
                      }};
   client.Create<TcpConnect>(std::move(opt));
@@ -81,12 +81,12 @@ TEST_F(ConnectTest, HttpGet) {
     LOGI("on_closed");
     cv.notify_all();
   };
-  opt.on_message = [&](const Message& msg) {
+  opt.on_message = [&](IConnect* c, const Message& msg) {
     const auto& hm = static_cast<const HttpMessage&>(msg);
     LOGI("on_message status=%d body:%.*s", hm.status, hm.body.size(),
          hm.body.data());
   };
-  opt.on_error = [](std::string_view msg) {
+  opt.on_error = [](IConnect* c, std::string_view msg) {
     LOGI("on_error: %.*s", msg.size(), msg.data());
   };
   client.Create<HttpConnect>(std::move(opt));
@@ -102,18 +102,18 @@ TEST_F(ConnectTest, HttpPost) {
   opt.body = "{\"user\":\"chaohui\", \"id\":42}";
   opt.url = "https://httpbin.org/post";
   opt.headers = {{"Content-Type", "application/json"},
-                 {"Content-Length", std::to_string(opt.body->size())}};
+                 {"Content-Length", std::to_string(opt.body.size())}};
   opt.cert = "/etc/ssl/certs/ca-certificates.crt";
   opt.on_closed = [&]() {
     LOGI("on_closed");
     cv.notify_all();
   };
-  opt.on_message = [&](const Message& msg) {
+  opt.on_message = [&](IConnect* c, const Message& msg) {
     const auto& hm = static_cast<const HttpMessage&>(msg);
     LOGI("on_message: status=%d body:%.*s", hm.status, hm.body.size(),
          hm.body.data());
   };
-  opt.on_error = [](std::string_view msg) {
+  opt.on_error = [](IConnect* c, std::string_view msg) {
     LOGI("on_error: %.*s", msg.size(), msg.data());
   };
   client.Create<HttpConnect>(std::move(opt));
@@ -133,17 +133,47 @@ TEST_F(ConnectTest, HttpPostFile) {
     LOGI("on_closed");
     cv.notify_all();
   };
-  opt.on_message = [&](const Message& msg) {
+  opt.on_message = [&](IConnect* c, const Message& msg) {
     const auto& hm = static_cast<const HttpMessage&>(msg);
     LOGI("on_message: status=%d body:%.*s", hm.status, hm.body.size(),
          hm.body.data());
   };
-  opt.on_error = [](std::string_view msg) {
+  opt.on_error = [](IConnect* c, std::string_view msg) {
     LOGI("on_error: %.*s", msg.size(), msg.data());
   };
   client.Create<HttpConnect>(std::move(opt));
   std::unique_lock<std::mutex> lk(cv_mtx);
   cv.wait_for(lk, std::chrono::seconds(10));
+}
+
+TEST_F(ConnectTest, Mqtt) {
+  std::condition_variable cv;
+  std::mutex cv_mtx;
+  IClient client;
+  MqttOptions opt{};
+  opt.url = "mqtt://broker.hivemq.com:1883";
+  opt.cert = "/etc/ssl/certs/ca-certificates.crt";
+  opt.topics = {"mg/123/rx", "mg/123/tx"};
+  opt.on_closed = [&]() {
+    LOGI("on_closed");
+    cv.notify_all();
+  };
+  opt.on_message = [&](IConnect* c, const Message& msg) {
+    const auto& rmm = static_cast<const MqttMessage&>(msg);
+    LOGI("on_message: topic=%.*s body:%.*s", rmm.topic.size(), rmm.topic.data(),
+         rmm.body.size(), rmm.body.data());
+    MqttMessage tmm;
+    tmm.topic = "mg/123/tx";
+    tmm.body = "Hello, this is WZHHNET speaking...";
+    auto* mc = static_cast<MqttConnect*>(c);
+    mc->Publish(std::move(tmm));
+  };
+  opt.on_error = [](IConnect* c, std::string_view msg) {
+    LOGI("on_error: %.*s", msg.size(), msg.data());
+  };
+  client.Create<MqttConnect>(std::move(opt));
+  std::unique_lock<std::mutex> lk(cv_mtx);
+  cv.wait_for(lk, std::chrono::seconds(5));
 }
 
 }  // namespace test

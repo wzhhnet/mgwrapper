@@ -62,24 +62,30 @@ struct Options {
   std::string url;
   std::function<void()> on_closed;
   std::function<void(IConnect*)> on_connect;
-  std::function<void(const Message&)> on_message;
-  std::function<void(std::string_view)> on_error;
+  std::function<void(IConnect*, const Message&)> on_message;
+  std::function<void(IConnect*, std::string_view)> on_error;
 };
 
 struct HttpOptions : public Options {
   std::string method;
   HttpHeaders headers;
-  std::optional<std::string> body;
-  std::optional<std::string> file;
-  std::optional<std::string> cert;
+  std::string body;
+  std::string file;
+  std::string cert;
 };
 
-struct MqttOption : public Options {
-  //TODO
+struct MqttOptions : public Options {
+  uint8_t qos;
+  std::string user;
+  std::string pass;
+  std::string cert;
+  std::vector<std::string> topics;
+  std::function<void(IConnect*)> on_mqtt_open;
 };
 
 class IConnect {
- friend class IClient;
+  friend class IClient;
+
  public:
   using Ptr = std::shared_ptr<IConnect>;
   virtual void Init(void* data) = 0;
@@ -87,7 +93,7 @@ class IConnect {
   virtual bool Send(std::string_view body);
 
  protected:
-   void* mgc_ = nullptr;
+  void* mgc_ = nullptr;
 };
 
 template <class OPTIONS>
@@ -124,6 +130,16 @@ class HttpConnect : public IConnectImpl<HttpOptions> {
 
  private:
   void* mgfd_ = nullptr;
+};
+
+class MqttConnect : public IConnectImpl<MqttOptions> {
+ public:
+  MqttConnect(MqttOptions options);
+  void Publish(MqttMessage msg);
+
+ private:
+  virtual void Init(void* data) override;
+  virtual void Handler(int ev, void* ev_data) override;
 };
 
 }  // namespace mg
