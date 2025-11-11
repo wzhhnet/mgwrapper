@@ -146,7 +146,7 @@ TEST_F(ConnectTest, HttpPostFile) {
   cv.wait_for(lk, std::chrono::seconds(10));
 }
 
-TEST_F(ConnectTest, Mqtt) {
+TEST_F(ConnectTest, MqttAutoSubscribe) {
   std::condition_variable cv;
   std::mutex cv_mtx;
   IClient client;
@@ -157,6 +157,42 @@ TEST_F(ConnectTest, Mqtt) {
   opt.on_closed = [&]() {
     LOGI("on_closed");
     cv.notify_all();
+  };
+  opt.on_message = [&](IConnect* c, const Message& msg) {
+    const auto& rmm = static_cast<const MqttMessage&>(msg);
+    LOGI("on_message: topic=%.*s body:%.*s", rmm.topic.size(), rmm.topic.data(),
+         rmm.body.size(), rmm.body.data());
+    MqttMessage tmm;
+    tmm.topic = "mg/123/tx";
+    tmm.body = "Hello, this is WZHHNET speaking...";
+    auto* mc = static_cast<MqttConnect*>(c);
+    mc->Publish(std::move(tmm));
+  };
+  opt.on_error = [](IConnect* c, std::string_view msg) {
+    LOGI("on_error: %.*s", msg.size(), msg.data());
+  };
+  client.Create<MqttConnect>(std::move(opt));
+  std::unique_lock<std::mutex> lk(cv_mtx);
+  cv.wait_for(lk, std::chrono::seconds(5));
+}
+
+TEST_F(ConnectTest, MqttManualSubscribe) {
+  std::condition_variable cv;
+  std::mutex cv_mtx;
+  IClient client;
+  MqttOptions opt{};
+  opt.url = "mqtt://broker.hivemq.com:1883";
+  opt.cert = "/etc/ssl/certs/ca-certificates.crt";
+  opt.on_closed = [&]() {
+    LOGI("on_closed");
+    cv.notify_all();
+  };
+  opt.on_mqtt_open = [](IConnect* c) {
+    auto *mc = static_cast<MqttConnect*>(c);
+    mc->Subscribe("mg/123/rx");
+    LOGI("subscribe topic:mg/123/rx");
+    mc->Subscribe("mg/123/tx");
+    LOGI("subscribe topic:mg/123/rx");
   };
   opt.on_message = [&](IConnect* c, const Message& msg) {
     const auto& rmm = static_cast<const MqttMessage&>(msg);

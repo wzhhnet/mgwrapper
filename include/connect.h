@@ -135,7 +135,8 @@ class HttpConnect : public IConnectImpl<HttpOptions> {
 class MqttConnect : public IConnectImpl<MqttOptions> {
  public:
   MqttConnect(MqttOptions options);
-  void Publish(MqttMessage msg);
+  bool Publish(MqttMessage msg);
+  bool Subscribe(std::string_view topic);
 
  private:
   virtual void Init(void* data) override;

@@ -192,7 +192,6 @@ void MqttConnect::Handler(int ev, void* ev_data) {
       for (const auto& topic : options_.topics) {
         opt.topic = mg_str(topic.c_str());
         mg_mqtt_sub(c, &opt);
-        LOGI("subscribe topic:%s", topic.c_str());
       }
     }
   } else if (ev == MG_EV_MQTT_MSG && options_.on_message) {
@@ -203,16 +202,31 @@ void MqttConnect::Handler(int ev, void* ev_data) {
   }
 }
 
-void MqttConnect::Publish(MqttMessage msg) {
+bool MqttConnect::Publish(MqttMessage msg) {
   auto* c = static_cast<struct mg_connection*>(mgc_);
-  if (c) {
-    struct mg_mqtt_opts pub_opts = {
-        .topic = mg_str(msg.topic.data()),
-        .message = mg_str(msg.body.data()),
-        .qos = options_.qos,
-    };
-    mg_mqtt_pub(c, &pub_opts);
-  }
+  if (!c)
+    return false;
+  struct mg_mqtt_opts pub_opts = {
+      .topic = mg_str(msg.topic.data()),
+      .message = mg_str(msg.body.data()),
+      .qos = options_.qos,
+  };
+  mg_mqtt_pub(c, &pub_opts);
+  return true;
+}
+
+bool MqttConnect::Subscribe(std::string_view topic) {
+  auto* c = static_cast<struct mg_connection*>(mgc_);
+  if (!c)
+    return false;
+  struct mg_mqtt_opts opt = {
+      .user = mg_str(options_.user.c_str()),
+      .pass = mg_str(options_.pass.c_str()),
+      .qos = options_.qos,
+  };
+  opt.topic = mg_str(topic.data());
+  mg_mqtt_sub(c, &opt);
+  return true;
 }
 
 }  // namespace mg
