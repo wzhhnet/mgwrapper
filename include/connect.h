@@ -22,10 +22,7 @@
 
 #include <functional>
 #include <map>
-#include <memory>
-#include <optional>
-#include <string>
-#include <string_view>
+#include "iconnect.h"
 
 #ifndef LOGE
 #define LOGE(...) MG_ERROR((__VA_ARGS__))
@@ -55,8 +52,8 @@ struct MqttMessage {
   std::string_view body;
 };
 
-class IConnect;
-using FnOnClose = std::function<void()>;
+using FnOnOpen = std::function<void(IConnect*)>;
+using FnOnClose = std::function<void(IConnect*)>;
 using FnOnError = std::function<void(IConnect*, std::string_view)>;
 using FnOnRead = std::function<void(IConnect*, std::string_view)>;
 using FnOnConnect = std::function<void(IConnect*)>;
@@ -65,7 +62,9 @@ using FnOnHttpMessage = std::function<void(IConnect*, HttpMessage)>;
 using FnOnMqttMessage = std::function<void(IConnect*, MqttMessage)>;
 
 struct Options {
+  using Ptr = std::shared_ptr<Options>;
   std::string url;
+  FnOnOpen on_open;
   FnOnRead on_read;
   FnOnClose on_close;
   FnOnError on_error;
@@ -73,6 +72,7 @@ struct Options {
 };
 
 struct HttpOptions : public Options {
+  using Ptr = std::shared_ptr<HttpOptions>;
   std::string method;
   HttpHeaders headers;
   std::string body;
@@ -82,6 +82,7 @@ struct HttpOptions : public Options {
 };
 
 struct MqttOptions : public Options {
+  using Ptr = std::shared_ptr<MqttOptions>;
   uint8_t qos;
   std::string user;
   std::string pass;
@@ -91,63 +92,30 @@ struct MqttOptions : public Options {
   FnOnMqttMessage on_message;
 };
 
-class IConnect {
-  friend class IClient;
+using Socket = TcpConnect<Options>;
 
- public:
-  using Ptr = std::shared_ptr<IConnect>;
-  virtual void Init(void* data) = 0;
-  virtual void Handler(int ev, void* ev_data) = 0;
-  virtual bool Send(std::string_view body);
-
- protected:
-  void* mgc_ = nullptr;
-};
-
-template <class OPTIONS>
-class IConnectImpl : public IConnect {
- public:
-  IConnectImpl(OPTIONS options) : options_(std::move(options)) {}
-
- private:
-  virtual void Init(void* data) = 0;
-  virtual void Handler(int ev, void* ev_data) = 0;
-
- protected:
-  OPTIONS options_;
-};
-
-class TcpConnect : public IConnectImpl<Options> {
- public:
-  TcpConnect(Options options);
-
- private:
-  virtual void Init(void* data) override;
-  virtual void Handler(int ev, void* ev_data) override;
-};
-
-class HttpConnect : public IConnectImpl<HttpOptions> {
+class HttpConnect : public TcpConnect<HttpOptions> {
  public:
   HttpConnect(HttpOptions options);
 
  private:
-  virtual void Init(void* data) override;
+  virtual void Init(struct mg_mgr* mgr) override;
   virtual void Handler(int ev, void* ev_data) override;
   void Request();
   std::string ParseHeaders();
 
  private:
-  void* mgfd_ = nullptr;
+  struct mg_fd* mgfd_ = nullptr;
 };
 
-class MqttConnect : public IConnectImpl<MqttOptions> {
+class MqttConnect : public TcpConnect<MqttOptions> {
  public:
   MqttConnect(MqttOptions options);
   bool Publish(MqttMessage msg);
   bool Subscribe(std::string_view topic);
 
  private:
-  virtual void Init(void* data) override;
+  virtual void Init(struct mg_mgr* mgr) override;
   virtual void Handler(int ev, void* ev_data) override;
 };
 

@@ -46,7 +46,7 @@ IConnect* IClient::Pop() {
 
 bool IClient::EventLoop() {
   if (IConnect* p = Pop(); p)
-    p->Init(static_cast<void*>(&mgr_));
+    p->Init(&mgr_);
 
   mg_mgr_poll(&mgr_, 50);
   if (Stopped()) {

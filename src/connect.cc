@@ -24,7 +24,7 @@
 
 namespace mg {
 
-static void EventHandler(struct mg_connection* c, int ev, void* ev_data) {
+void IConnect::Callback(struct mg_connection* c, int ev, void* ev_data) {
   if (auto* conn = static_cast<IConnect*>(c->fn_data); conn) {
     conn->Handler(ev, ev_data);
   } else {
@@ -44,57 +44,26 @@ static HttpHeaders ReverseParseHeaders(struct mg_http_message* hm) {
 }
 
 bool IConnect::Send(std::string_view body) {
-  auto* c = static_cast<struct mg_connection*>(mgc_);
-  if (!c)
-    return false;
-  return mg_send(c, body.data(), body.size());
-}
-
-TcpConnect::TcpConnect(Options options)
-    : IConnectImpl<Options>(std::move(options)) {}
-
-void TcpConnect::Init(void* data) {
-  struct mg_mgr* mgr = static_cast<mg_mgr*>(data);
-  auto* c = mg_connect(mgr, options_.url.c_str(), &EventHandler,
-                       static_cast<void*>(this));
-  mgc_ = static_cast<void*>(c);
-}
-
-void TcpConnect::Handler(int ev, void* ev_data) {
-  auto* c = static_cast<struct mg_connection*>(mgc_);
-  if (ev == MG_EV_CONNECT && options_.on_connect) {
-    options_.on_connect(this);
-  } else if (ev == MG_EV_READ && options_.on_read) {
-    options_.on_read(
-        this, std::string_view(reinterpret_cast<const char*>(c->recv.buf),
-                               c->recv.len));
-    /// Tell Mongoose we've consumed data
-    mg_iobuf_del(&c->recv, 0, c->recv.len);
-  } else if (ev == MG_EV_ERROR && options_.on_error) {
-    options_.on_error(this,
-                      std::string_view(static_cast<const char*>(ev_data)));
-  }
+  return mg_send(mgc_, body.data(), body.size());
 }
 
 HttpConnect::HttpConnect(HttpOptions options)
-    : IConnectImpl<HttpOptions>(std::move(options)) {
+    : TcpConnect<HttpOptions>(std::move(options)) {
   if (!options_.file.empty()) {
-    auto* mgfd = mg_fs_open(&mg_fs_posix, options_.file.c_str(), MG_FS_READ);
-    if (mgfd) {
+    mgfd_ = mg_fs_open(&mg_fs_posix, options_.file.c_str(), MG_FS_READ);
+    if (mgfd_) {
       time_t tm;
       size_t fs;
-      mgfd->fs->st(options_.file.c_str(), &fs, &tm);
+      mgfd_->fs->st(options_.file.c_str(), &fs, &tm);
       options_.headers.emplace(
           std::make_pair("Content-Type", "application/octet-stream"));
       options_.headers.emplace(
           std::make_pair("Content-Length", std::to_string(fs)));
-      mgfd_ = mgfd;
     }
   }
 }
 
 void HttpConnect::Handler(int ev, void* ev_data) {
-  auto* c = static_cast<struct mg_connection*>(mgc_);
   if (ev == MG_EV_CONNECT) {
     Request();
   } else if (ev == MG_EV_HTTP_MSG && options_.on_message) {
@@ -105,32 +74,26 @@ void HttpConnect::Handler(int ev, void* ev_data) {
     options_.on_message(this, std::move(msg));
   } else if (ev == MG_EV_WRITE && mgfd_ != nullptr) {
     char buf[MG_IO_SIZE];
-    size_t len = MG_IO_SIZE - c->send.len;
-    auto* fd = static_cast<struct mg_fd*>(mgfd_);
-    size_t rlen = fd->fs->rd(fd->fd, buf, len);
+    size_t len = MG_IO_SIZE - mgc_->send.len;
+    size_t rlen = mgfd_->fs->rd(mgfd_->fd, buf, len);
     if (rlen) {
-      mg_send(c, buf, rlen);
+      mg_send(mgc_, buf, rlen);
       LOGI("post size=%u", rlen);
     } else {
-      mg_fs_close(fd);
+      mg_fs_close(mgfd_);
       mgfd_ = nullptr;
     }
-  } else if (ev == MG_EV_ERROR && options_.on_error) {
-    options_.on_error(this,
-                      std::string_view(static_cast<const char*>(ev_data)));
-  } else if (ev == MG_EV_CLOSE && options_.on_close) {
+  } else if (ev == MG_EV_CLOSE) {
     if (mgfd_) {
-      mg_fs_close(static_cast<struct mg_fd*>(mgfd_));
+      mg_fs_close(mgfd_);
     }
-    options_.on_close();
   }
+  TcpConnect<HttpOptions>::Handler(ev, ev_data);
 }
 
-void HttpConnect::Init(void* data) {
-  struct mg_mgr* mgr = static_cast<mg_mgr*>(data);
-  auto* c = mg_http_connect(mgr, options_.url.c_str(), &EventHandler,
-                            static_cast<void*>(this));
-  mgc_ = static_cast<void*>(c);
+void HttpConnect::Init(struct mg_mgr* mgr) {
+  mgc_ = mg_http_connect(mgr, options_.url.c_str(), &IConnect::Callback,
+                         static_cast<void*>(this));
 }
 
 void HttpConnect::Request() {
@@ -164,35 +127,32 @@ std::string HttpConnect::ParseHeaders() {
 }
 
 MqttConnect::MqttConnect(MqttOptions options)
-    : IConnectImpl<MqttOptions>(std::move(options)) {}
+    : TcpConnect<MqttOptions>(std::move(options)) {}
 
-void MqttConnect::Init(void* data) {
-  struct mg_mgr* mgr = static_cast<mg_mgr*>(data);
+void MqttConnect::Init(struct mg_mgr* mgr) {
   struct mg_mqtt_opts opts = {
       .user = mg_str(options_.user.c_str()),
       .pass = mg_str(options_.pass.c_str()),
       .qos = options_.qos,
   };
-  auto* c = mg_mqtt_connect(mgr, options_.url.c_str(), &opts, &EventHandler,
-                            static_cast<void*>(this));
-  mgc_ = static_cast<void*>(c);
+  mgc_ = mg_mqtt_connect(mgr, options_.url.c_str(), &opts, &IConnect::Callback,
+                         static_cast<void*>(this));
 }
 
 void MqttConnect::Handler(int ev, void* ev_data) {
   auto* c = static_cast<struct mg_connection*>(mgc_);
   if (ev == MG_EV_MQTT_OPEN) {
+    struct mg_mqtt_opts opt = {
+        .user = mg_str(options_.user.c_str()),
+        .pass = mg_str(options_.pass.c_str()),
+        .qos = options_.qos,
+    };
+    for (const auto& topic : options_.topics) {
+      opt.topic = mg_str(topic.c_str());
+      mg_mqtt_sub(c, &opt);
+    }
     if (options_.on_mqtt_open) {
       options_.on_mqtt_open(this);
-    } else {
-      struct mg_mqtt_opts opt = {
-          .user = mg_str(options_.user.c_str()),
-          .pass = mg_str(options_.pass.c_str()),
-          .qos = options_.qos,
-      };
-      for (const auto& topic : options_.topics) {
-        opt.topic = mg_str(topic.c_str());
-        mg_mqtt_sub(c, &opt);
-      }
     }
   } else if (ev == MG_EV_MQTT_MSG && options_.on_message) {
     struct mg_mqtt_message* mm = (struct mg_mqtt_message*)ev_data;
@@ -200,6 +160,7 @@ void MqttConnect::Handler(int ev, void* ev_data) {
     msg.body = std::string_view(mm->data.buf, mm->data.len);
     options_.on_message(this, std::move(msg));
   }
+  TcpConnect<MqttOptions>::Handler(ev, ev_data);
 }
 
 bool MqttConnect::Publish(MqttMessage msg) {
