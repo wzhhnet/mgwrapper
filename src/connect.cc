@@ -64,10 +64,10 @@ void TcpConnect::Handler(int ev, void* ev_data) {
   auto* c = static_cast<struct mg_connection*>(mgc_);
   if (ev == MG_EV_CONNECT && options_.on_connect) {
     options_.on_connect(this);
-  } else if (ev == MG_EV_READ && options_.on_message) {
-    Message msg = {std::string_view(reinterpret_cast<const char*>(c->recv.buf),
-                                    c->recv.len)};
-    options_.on_message(this, msg);
+  } else if (ev == MG_EV_READ && options_.on_read) {
+    options_.on_read(
+        this, std::string_view(reinterpret_cast<const char*>(c->recv.buf),
+                               c->recv.len));
     /// Tell Mongoose we've consumed data
     mg_iobuf_del(&c->recv, 0, c->recv.len);
   } else if (ev == MG_EV_ERROR && options_.on_error) {
@@ -102,7 +102,7 @@ void HttpConnect::Handler(int ev, void* ev_data) {
     HttpMessage msg = {.status = mg_http_status(hm),
                        .headers = ReverseParseHeaders(hm)};
     msg.body = std::string_view(hm->body.buf, hm->body.len);
-    options_.on_message(this, msg);
+    options_.on_message(this, std::move(msg));
   } else if (ev == MG_EV_WRITE && mgfd_ != nullptr) {
     char buf[MG_IO_SIZE];
     size_t len = MG_IO_SIZE - c->send.len;
@@ -118,11 +118,11 @@ void HttpConnect::Handler(int ev, void* ev_data) {
   } else if (ev == MG_EV_ERROR && options_.on_error) {
     options_.on_error(this,
                       std::string_view(static_cast<const char*>(ev_data)));
-  } else if (ev == MG_EV_CLOSE && options_.on_closed) {
+  } else if (ev == MG_EV_CLOSE && options_.on_close) {
     if (mgfd_) {
       mg_fs_close(static_cast<struct mg_fd*>(mgfd_));
     }
-    options_.on_closed();
+    options_.on_close();
   }
 }
 
@@ -198,7 +198,7 @@ void MqttConnect::Handler(int ev, void* ev_data) {
     struct mg_mqtt_message* mm = (struct mg_mqtt_message*)ev_data;
     MqttMessage msg = {.topic = std::string_view(mm->topic.buf, mm->topic.len)};
     msg.body = std::string_view(mm->data.buf, mm->data.len);
-    options_.on_message(this, msg);
+    options_.on_message(this, std::move(msg));
   }
 }
 

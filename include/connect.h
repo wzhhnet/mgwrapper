@@ -43,27 +43,33 @@
 namespace mg {
 
 using HttpHeaders = std::map<std::string, std::string>;
-class IConnect;
 
-struct Message {
+struct HttpMessage {
+  int status;
+  HttpHeaders headers;
   std::string_view body;
 };
 
-struct HttpMessage : public Message {
-  int status;
-  HttpHeaders headers;
+struct MqttMessage {
+  std::string_view topic;
+  std::string_view body;
 };
 
-struct MqttMessage : public Message {
-  std::string_view topic;
-};
+class IConnect;
+using FnOnClose = std::function<void()>;
+using FnOnError = std::function<void(IConnect*, std::string_view)>;
+using FnOnRead = std::function<void(IConnect*, std::string_view)>;
+using FnOnConnect = std::function<void(IConnect*)>;
+using FnOnMqttOpen = std::function<void(IConnect*)>;
+using FnOnHttpMessage = std::function<void(IConnect*, HttpMessage)>;
+using FnOnMqttMessage = std::function<void(IConnect*, MqttMessage)>;
 
 struct Options {
   std::string url;
-  std::function<void()> on_closed;
-  std::function<void(IConnect*)> on_connect;
-  std::function<void(IConnect*, const Message&)> on_message;
-  std::function<void(IConnect*, std::string_view)> on_error;
+  FnOnRead on_read;
+  FnOnClose on_close;
+  FnOnError on_error;
+  FnOnConnect on_connect;
 };
 
 struct HttpOptions : public Options {
@@ -72,6 +78,7 @@ struct HttpOptions : public Options {
   std::string body;
   std::string file;
   std::string cert;
+  FnOnHttpMessage on_message;
 };
 
 struct MqttOptions : public Options {
@@ -80,7 +87,8 @@ struct MqttOptions : public Options {
   std::string pass;
   std::string cert;
   std::vector<std::string> topics;
-  std::function<void(IConnect*)> on_mqtt_open;
+  FnOnMqttOpen on_mqtt_open;
+  FnOnMqttMessage on_message;
 };
 
 class IConnect {
