@@ -24,6 +24,13 @@
 
 namespace mg {
 
+void IConnect::Timeout(void* fn_data)
+{
+   auto* conn = static_cast<IConnect*>(fn_data);
+   conn->cause_ = "connection timeout";
+   conn->kill();
+}
+
 void IConnect::Callback(struct mg_connection* c, int ev, void* ev_data) {
   if (auto* conn = static_cast<IConnect*>(c->fn_data); conn) {
     conn->Handler(ev, ev_data);
@@ -98,6 +105,7 @@ void HttpConnect::Handler(int ev, void* ev_data) {
 }
 
 void HttpConnect::Init(struct mg_mgr* mgr) {
+  mgr_ = mgr;
   mgc_ = mg_http_connect(mgr, options_.url.c_str(), &IConnect::Callback,
                          static_cast<void*>(this));
 }
@@ -141,6 +149,7 @@ void MqttConnect::Init(struct mg_mgr* mgr) {
       .pass = mg_str(options_.pass.c_str()),
       .qos = options_.qos,
   };
+  mgr_ = mgr;
   mgc_ = mg_mqtt_connect(mgr, options_.url.c_str(), &opts, &IConnect::Callback,
                          static_cast<void*>(this));
 }

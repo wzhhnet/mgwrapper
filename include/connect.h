@@ -53,7 +53,7 @@ struct MqttMessage {
 };
 
 using FnOnOpen = std::function<void(IConnect*)>;
-using FnOnClose = std::function<void(IConnect*)>;
+using FnOnClose = std::function<void(IConnect*, std::string_view)>;
 using FnOnError = std::function<void(IConnect*, std::string_view)>;
 using FnOnRead = std::function<void(IConnect*, std::string_view)>;
 using FnOnConnect = std::function<void(IConnect*)>;
@@ -64,6 +64,7 @@ using FnOnMqttMessage = std::function<void(IConnect*, MqttMessage)>;
 struct Options {
   using Ptr = std::shared_ptr<Options>;
   std::string url;
+  uint32_t timeout; // timeout of connection, milliseconds
   FnOnOpen on_open;
   FnOnRead on_read;
   FnOnClose on_close;
