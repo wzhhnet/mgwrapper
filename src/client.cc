@@ -34,6 +34,13 @@ bool IClient::Add(IConnect::Ptr conn) {
   return false;
 }
 
+bool IClient::Remove(IConnect::Ptr conn)
+{
+  std::lock_guard<std::mutex> guard(mtx_);
+  auto r = sess_set_.erase(conn);
+  return r > 0 ? true : false;
+}
+
 IConnect* IClient::Pop() {
   std::lock_guard<std::mutex> guard(mtx_);
   IConnect* p = nullptr;

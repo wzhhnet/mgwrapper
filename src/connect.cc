@@ -47,6 +47,12 @@ bool IConnect::Send(std::string_view body) {
   return mg_send(mgc_, body.data(), body.size());
 }
 
+bool IConnect::kill() {
+  if (!mgc_) return false;
+  mgc_->is_draining = 1;
+  return true;
+}
+
 HttpConnect::HttpConnect(HttpOptions options)
     : TcpConnect<HttpOptions>(std::move(options)) {
   if (!options_.file.empty()) {

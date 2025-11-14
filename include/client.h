@@ -9,7 +9,7 @@
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- *
+ *a
  *      http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
@@ -23,8 +23,8 @@
 #include <mutex>
 #include <queue>
 #include <set>
-#include "iloop.h"
 #include "connect.h"
+#include "iloop.h"
 
 namespace mg {
 
@@ -36,14 +36,19 @@ class IClient : public ILoop {
   template <class CONNECT, class... Args>
   IConnect::Ptr Create(Args&&... args) {
     auto c = std::make_shared<CONNECT>(std::forward<Args>(args)...);
-    if (Add(c))
+    if (Add(c)) {
+      c->on_release = [&](IConnect::Ptr conn) {
+        this->Remove(conn);
+      };
       return c;
+    }
     return nullptr;
   }
 
  private:
   virtual bool EventLoop() override;
   bool Add(IConnect::Ptr conn);
+  bool Remove(IConnect::Ptr conn);
   IConnect* Pop();
 
  private:

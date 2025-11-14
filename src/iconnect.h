@@ -27,12 +27,13 @@
 
 namespace mg {
 
-class IConnect {
+class IConnect : virtual public std::enable_shared_from_this<IConnect> {
   friend class IClient;
 
  public:
   using Ptr = std::shared_ptr<IConnect>;
   virtual bool Send(std::string_view body);
+  bool kill();
 
  private:
   virtual void Init(struct mg_mgr* mgr) = 0;
@@ -43,6 +44,7 @@ class IConnect {
 
  protected:
   struct mg_connection* mgc_ = nullptr;
+  std::function<void(Ptr)> on_release;
 };
 
 template <class OPTIONS>
@@ -74,13 +76,18 @@ class TcpConnect : public IConnect {
         if (options_.on_close) {
           options_.on_close(this);
         }
+        if (this->on_release) {
+          this->on_release(this->shared_from_this());
+        }
         break;
       case MG_EV_READ:
         if (options_.on_read) {
-        options_.on_read(this, std::string_view(reinterpret_cast<const char*>(mgc_->recv.buf),
+          options_.on_read(
+              this,
+              std::string_view(reinterpret_cast<const char*>(mgc_->recv.buf),
                                mgc_->recv.len));
-        /// Tell Mongoose we've consumed data
-        mg_iobuf_del(&mgc_->recv, 0, mgc_->recv.len);
+          /// Tell Mongoose we've consumed data
+          mg_iobuf_del(&mgc_->recv, 0, mgc_->recv.len);
         }
         break;
       case MG_EV_CONNECT:
@@ -97,4 +104,4 @@ class TcpConnect : public IConnect {
   OPTIONS options_;
 };
 
-}
+}  // namespace mg
