@@ -38,13 +38,16 @@ class IConnect : virtual public std::enable_shared_from_this<IConnect> {
  private:
   virtual void Init(struct mg_mgr* mgr) = 0;
   virtual void Handler(int ev, void* ev_data) = 0;
+  virtual void OnTimeout() = 0;
 
  protected:
   static void Timeout(void* fn_data);
   static void Callback(struct mg_connection* c, int ev, void* ev_data);
+  void StartTimer(uint64_t period_ms, unsigned flags);
 
  protected:
   struct mg_mgr* mgr_ = nullptr;
+  struct mg_timer* mgt_ = nullptr;
   struct mg_connection* mgc_ = nullptr;
   std::string cause_ = "normal";
   std::function<void(Ptr)> on_release;
@@ -56,6 +59,11 @@ class TcpConnect : public IConnect {
   TcpConnect(OPTIONS options) : options_(std::move(options)) {}
 
  private:
+  virtual void OnTimeout() {
+    cause_ = "connection timeout";
+    kill();
+  }
+
   void Init(struct mg_mgr* mgr) override {
     mgr_ = mgr;
     mgc_ = mg_connect(mgr, options_.url.c_str(), &IConnect::Callback,
@@ -77,8 +85,7 @@ class TcpConnect : public IConnect {
           options_.on_open(this);
         }
         if (options_.timeout) {
-          mg_timer_add(mgr_, options_.timeout, MG_TIMER_RUN_NOW,
-                       &IConnect::Timeout, this);
+          StartTimer(options_.timeout, MG_TIMER_RUN_NOW);
         }
         break;
       case MG_EV_CLOSE:

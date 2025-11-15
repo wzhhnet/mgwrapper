@@ -24,11 +24,9 @@
 
 namespace mg {
 
-void IConnect::Timeout(void* fn_data)
-{
-   auto* conn = static_cast<IConnect*>(fn_data);
-   conn->cause_ = "connection timeout";
-   conn->kill();
+void IConnect::Timeout(void* fn_data) {
+  auto* conn = static_cast<IConnect*>(fn_data);
+  conn->OnTimeout();
 }
 
 void IConnect::Callback(struct mg_connection* c, int ev, void* ev_data) {
@@ -55,9 +53,14 @@ bool IConnect::Send(std::string_view body) {
 }
 
 bool IConnect::kill() {
-  if (!mgc_) return false;
+  if (!mgc_)
+    return false;
   mgc_->is_draining = 1;
   return true;
+}
+
+void IConnect::StartTimer(uint64_t period_ms, unsigned flags) {
+  mg_timer_add(mgr_, period_ms, flags, &IConnect::Timeout, this);
 }
 
 HttpConnect::HttpConnect(HttpOptions options)
@@ -176,6 +179,15 @@ void MqttConnect::Handler(int ev, void* ev_data) {
     options_.on_message(this, std::move(msg));
   }
   TcpConnect<MqttOptions>::Handler(ev, ev_data);
+}
+
+void MqttConnect::OnTimeout() {
+  if (mgc_ == nullptr) {
+    Init(mgr_);
+  } else {
+    mg_mqtt_ping(mgc_);
+  }
+  StartTimer(options_.timeout, MG_TIMER_RUN_NOW);
 }
 
 bool MqttConnect::Publish(MqttMessage msg) {

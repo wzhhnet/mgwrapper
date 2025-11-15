@@ -118,6 +118,7 @@ class MqttConnect : public TcpConnect<MqttOptions> {
  private:
   virtual void Init(struct mg_mgr* mgr) override;
   virtual void Handler(int ev, void* ev_data) override;
+  virtual void OnTimeout() override;
 };
 
 }  // namespace mg

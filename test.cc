@@ -195,6 +195,7 @@ TEST_F(ConnectTest, MqttManualSubscribe) {
   std::mutex cv_mtx;
   IClient client;
   MqttOptions opt{};
+  opt.timeout = 3000;
   opt.url = "mqtt://broker.hivemq.com:1883";
   opt.cert = "/etc/ssl/certs/ca-certificates.crt";
   opt.on_close = [&](IConnect* c, std::string_view cause) {
