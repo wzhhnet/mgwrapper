@@ -47,7 +47,6 @@ class IConnect : virtual public std::enable_shared_from_this<IConnect> {
 
  protected:
   struct mg_mgr* mgr_ = nullptr;
-  struct mg_timer* mgt_ = nullptr;
   struct mg_connection* mgc_ = nullptr;
   std::string cause_ = "normal";
   std::function<void(Ptr)> on_release;
@@ -74,11 +73,7 @@ class TcpConnect : public IConnect {
   void Handler(int ev, void* ev_data) override {
     switch (ev) {
       case MG_EV_ERROR:
-        if (options_.on_error) {
-          cause_ = static_cast<const char*>(ev_data);
-          options_.on_error(
-              this, std::string_view(static_cast<const char*>(ev_data)));
-        }
+        cause_ = static_cast<const char*>(ev_data);
         break;
       case MG_EV_OPEN:
         if (options_.on_open) {

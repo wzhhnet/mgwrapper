@@ -57,10 +57,6 @@ TEST_F(ConnectTest, Socket) {
                      [&](IConnect* c, std::string_view cause) {
                        LOGI("on_close:%s", cause.data());
                      },
-                 .on_error =
-                     [](IConnect* c, std::string_view msg) {
-                       LOGI("on_error: %.*s", msg.size(), msg.data());
-                     },
                  .on_connect =
                      [](IConnect* c) {
                        LOGI("on_connect");
@@ -103,9 +99,6 @@ TEST_F(ConnectTest, HttpGet) {
     LOGI("on_message status=%d body:%.*s", msg.status, msg.body.size(),
          msg.body.data());
   };
-  opt.on_error = [](IConnect* c, std::string_view msg) {
-    LOGI("on_error: %.*s", msg.size(), msg.data());
-  };
   client.Create<HttpConnect>(std::move(opt));
   std::unique_lock<std::mutex> lk(cv_mtx);
   cv.wait_for(lk, std::chrono::seconds(10));
@@ -129,9 +122,6 @@ TEST_F(ConnectTest, HttpPost) {
     LOGI("on_message: status=%d body:%.*s", msg.status, msg.body.size(),
          msg.body.data());
   };
-  opt.on_error = [](IConnect* c, std::string_view msg) {
-    LOGI("on_error: %.*s", msg.size(), msg.data());
-  };
   client.Create<HttpConnect>(std::move(opt));
   std::unique_lock<std::mutex> lk(cv_mtx);
   cv.wait_for(lk, std::chrono::seconds(10));
@@ -152,9 +142,6 @@ TEST_F(ConnectTest, HttpPostFile) {
   opt.on_message = [&](IConnect* c, HttpMessage msg) {
     LOGI("on_message: status=%d body:%.*s", msg.status, msg.body.size(),
          msg.body.data());
-  };
-  opt.on_error = [](IConnect* c, std::string_view msg) {
-    LOGI("on_error: %.*s", msg.size(), msg.data());
   };
   client.Create<HttpConnect>(std::move(opt));
   std::unique_lock<std::mutex> lk(cv_mtx);
@@ -181,9 +168,6 @@ TEST_F(ConnectTest, MqttAutoSubscribe) {
     tmm.body = "Hello, this is WZHHNET speaking...";
     auto* mc = static_cast<MqttConnect*>(c);
     mc->Publish(std::move(tmm));
-  };
-  opt.on_error = [](IConnect* c, std::string_view msg) {
-    LOGI("on_error: %.*s", msg.size(), msg.data());
   };
   client.Create<MqttConnect>(std::move(opt));
   std::unique_lock<std::mutex> lk(cv_mtx);
@@ -217,9 +201,6 @@ TEST_F(ConnectTest, MqttManualSubscribe) {
     tmm.body = "Hello, this is WZHHNET speaking...";
     auto* mc = static_cast<MqttConnect*>(c);
     mc->Publish(std::move(tmm));
-  };
-  opt.on_error = [](IConnect* c, std::string_view msg) {
-    LOGI("on_error: %.*s", msg.size(), msg.data());
   };
   client.Create<MqttConnect>(std::move(opt));
   std::unique_lock<std::mutex> lk(cv_mtx);

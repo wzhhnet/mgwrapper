@@ -68,7 +68,6 @@ struct Options {
   FnOnOpen on_open;
   FnOnRead on_read;
   FnOnClose on_close;
-  FnOnError on_error;
   FnOnConnect on_connect;
 };
 
