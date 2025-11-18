@@ -23,6 +23,7 @@ file (GLOB MG_SRCS
 
 add_library (${PROJECT_NAME} SHARED ${MG_SRCS})
 target_include_directories(${PROJECT_NAME} PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
     ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
 if (ENABLE_SSL)
