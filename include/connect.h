@@ -23,6 +23,7 @@
 #include <functional>
 #include <map>
 #include "iconnect.h"
+#include "options.h"
 
 #ifndef LOGE
 #define LOGE(...) MG_ERROR((__VA_ARGS__))
@@ -39,64 +40,34 @@
 
 namespace mg {
 
-using HttpHeaders = std::map<std::string, std::string>;
+using ConnectOptions = Options<IConnect>;
 
-struct HttpMessage {
-  int status;
-  HttpHeaders headers;
-  std::string_view body;
-};
-
-struct MqttMessage {
-  std::string_view topic;
-  std::string_view body;
-};
-
-using FnOnOpen = std::function<void(IConnect*)>;
-using FnOnClose = std::function<void(IConnect*, std::string_view)>;
-using FnOnError = std::function<void(IConnect*, std::string_view)>;
-using FnOnRead = std::function<void(IConnect*, std::string_view)>;
-using FnOnConnect = std::function<void(IConnect*)>;
-using FnOnMqttOpen = std::function<void(IConnect*)>;
-using FnOnHttpMessage = std::function<void(IConnect*, HttpMessage)>;
-using FnOnMqttMessage = std::function<void(IConnect*, MqttMessage)>;
-
-struct Options {
-  using Ptr = std::shared_ptr<Options>;
-  std::string url;
-  uint32_t timeout; // timeout of connection, milliseconds
-  FnOnOpen on_open;
-  FnOnRead on_read;
-  FnOnClose on_close;
-  FnOnConnect on_connect;
-};
-
-struct HttpOptions : public Options {
-  using Ptr = std::shared_ptr<HttpOptions>;
+struct HttpConnectOptions : ConnectOptions {
+  using Ptr = std::shared_ptr<HttpConnectOptions>;
   std::string method;
   HttpHeaders headers;
   std::string body;
   std::string file;
   std::string cert;
-  FnOnHttpMessage on_message;
+  OnHttpMessage<IConnect> on_message;
 };
 
-struct MqttOptions : public Options {
-  using Ptr = std::shared_ptr<MqttOptions>;
+struct MqttConnectOptions : ConnectOptions {
+  using Ptr = std::shared_ptr<MqttConnectOptions>;
   uint8_t qos;
   std::string user;
   std::string pass;
   std::string cert;
   std::vector<std::string> topics;
-  FnOnMqttOpen on_mqtt_open;
-  FnOnMqttMessage on_message;
+  OnMqttOpen<IConnect> on_mqtt_open;
+  OnMqttMessage<IConnect> on_message;
 };
 
-using Socket = TcpConnect<Options>;
+using Socket = TcpConnect<ConnectOptions>;
 
-class HttpConnect : public TcpConnect<HttpOptions> {
+class HttpConnect : public TcpConnect<HttpConnectOptions> {
  public:
-  HttpConnect(HttpOptions options);
+  HttpConnect(HttpConnectOptions options);
 
  private:
   virtual void Init(struct mg_mgr* mgr) override;
@@ -108,9 +79,9 @@ class HttpConnect : public TcpConnect<HttpOptions> {
   struct mg_fd* mgfd_ = nullptr;
 };
 
-class MqttConnect : public TcpConnect<MqttOptions> {
+class MqttConnect : public TcpConnect<MqttConnectOptions> {
  public:
-  MqttConnect(MqttOptions options);
+  MqttConnect(MqttConnectOptions options);
   bool Publish(MqttMessage msg);
   bool Subscribe(std::string_view topic);
 

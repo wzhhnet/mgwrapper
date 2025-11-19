@@ -63,8 +63,8 @@ void IConnect::StartTimer(uint64_t period_ms, unsigned flags) {
   mg_timer_add(mgr_, period_ms, flags, &IConnect::Timeout, this);
 }
 
-HttpConnect::HttpConnect(HttpOptions options)
-    : TcpConnect<HttpOptions>(std::move(options)) {
+HttpConnect::HttpConnect(HttpConnectOptions options)
+    : TcpConnect<HttpConnectOptions>(std::move(options)) {
   if (!options_.file.empty()) {
     mgfd_ = mg_fs_open(&mg_fs_posix, options_.file.c_str(), MG_FS_READ);
     if (mgfd_) {
@@ -104,7 +104,7 @@ void HttpConnect::Handler(int ev, void* ev_data) {
       mg_fs_close(mgfd_);
     }
   }
-  TcpConnect<HttpOptions>::Handler(ev, ev_data);
+  TcpConnect<HttpConnectOptions>::Handler(ev, ev_data);
 }
 
 void HttpConnect::Init(struct mg_mgr* mgr) {
@@ -143,8 +143,8 @@ std::string HttpConnect::ParseHeaders() {
   return hstr;
 }
 
-MqttConnect::MqttConnect(MqttOptions options)
-    : TcpConnect<MqttOptions>(std::move(options)) {}
+MqttConnect::MqttConnect(MqttConnectOptions options)
+    : TcpConnect<MqttConnectOptions>(std::move(options)) {}
 
 void MqttConnect::Init(struct mg_mgr* mgr) {
   struct mg_mqtt_opts opts = {
@@ -178,7 +178,7 @@ void MqttConnect::Handler(int ev, void* ev_data) {
     msg.body = std::string_view(mm->data.buf, mm->data.len);
     options_.on_message(this, std::move(msg));
   }
-  TcpConnect<MqttOptions>::Handler(ev, ev_data);
+  TcpConnect<MqttConnectOptions>::Handler(ev, ev_data);
 }
 
 void MqttConnect::OnTimeout() {

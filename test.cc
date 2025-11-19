@@ -47,7 +47,7 @@ TEST_F(ConnectTest, Socket) {
   std::condition_variable cv;
   std::mutex cv_mtx;
   IClient client;
-  Options opt = {.url = "tcpbin.com:4242",
+  ConnectOptions opt = {.url = "tcpbin.com:4242",
                  .on_read =
                      [&](IConnect* c, std::string_view msg) {
                        LOGI("on_message body:%.*s", msg.size(), msg.data());
@@ -72,7 +72,7 @@ TEST_F(ConnectTest, Timeout) {
   std::condition_variable cv;
   std::mutex cv_mtx;
   IClient client;
-  HttpOptions opt = {.method = "GET"};
+  HttpConnectOptions opt = {.method = "GET"};
   opt.timeout = 1000;
   opt.url = "http://invalid.url";
   opt.on_close = [&](IConnect* c, std::string_view cause) {
@@ -88,7 +88,7 @@ TEST_F(ConnectTest, HttpGet) {
   std::condition_variable cv;
   std::mutex cv_mtx;
   IClient client;
-  HttpOptions opt = {.method = "GET"};
+  HttpConnectOptions opt = {.method = "GET"};
   opt.body = "";
   opt.url = "http://httpbin.org/get?user=chaohui&id=42";
   opt.on_close = [&](IConnect* c, std::string_view cause) {
@@ -108,7 +108,7 @@ TEST_F(ConnectTest, HttpPost) {
   std::condition_variable cv;
   std::mutex cv_mtx;
   IClient client;
-  HttpOptions opt = {.method = "POST"};
+  HttpConnectOptions opt = {.method = "POST"};
   opt.body = "{\"user\":\"chaohui\", \"id\":42}";
   opt.url = "https://httpbin.org/post";
   opt.headers = {{"Content-Type", "application/json"},
@@ -131,7 +131,7 @@ TEST_F(ConnectTest, HttpPostFile) {
   std::condition_variable cv;
   std::mutex cv_mtx;
   IClient client;
-  HttpOptions opt = {.method = "POST"};
+  HttpConnectOptions opt = {.method = "POST"};
   opt.url = "https://httpbin.org/post";
   opt.cert = "/etc/ssl/certs/ca-certificates.crt";
   opt.file = "./CMakeCache.txt";
@@ -152,7 +152,7 @@ TEST_F(ConnectTest, MqttAutoSubscribe) {
   std::condition_variable cv;
   std::mutex cv_mtx;
   IClient client;
-  MqttOptions opt{};
+  MqttConnectOptions opt{};
   opt.url = "mqtt://broker.hivemq.com:1883";
   opt.cert = "/etc/ssl/certs/ca-certificates.crt";
   opt.topics = {"mg/123/rx", "mg/123/tx"};
@@ -178,7 +178,7 @@ TEST_F(ConnectTest, MqttManualSubscribe) {
   std::condition_variable cv;
   std::mutex cv_mtx;
   IClient client;
-  MqttOptions opt{};
+  MqttConnectOptions opt{};
   opt.timeout = 3000;
   opt.url = "mqtt://broker.hivemq.com:1883";
   opt.cert = "/etc/ssl/certs/ca-certificates.crt";

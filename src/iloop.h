@@ -43,9 +43,7 @@ class ILoop {
     }
   }
 
-  bool Stopped() {
-    return exit_;
-  }
+  bool Stopped() { return exit_; }
 
   void Flush() {
     for (auto* c = mgr_.conns; c != NULL; c = c->next) {
@@ -53,15 +51,16 @@ class ILoop {
     }
   }
 
- private:
-  virtual bool EventLoop() = 0;
-
+ protected:
   virtual void InitLoop() {
     mg_log_set(MG_LL_INFO);
     mg_mgr_init(&mgr_);
   }
 
   virtual void UninitLoop() { mg_mgr_free(&mgr_); }
+
+ private:
+  virtual bool EventLoop() = 0;
 
   void StartRoutine() {
     InitLoop();
