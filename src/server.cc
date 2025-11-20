@@ -30,9 +30,15 @@ HttpServer::~HttpServer() {
   Stop();
 }
 void HttpServer::Handler(struct mg_connection* c, int ev, void* ev_data) {
-    if (ev == MG_EV_HTTP_MSG) {
-        //TODO
+  if (ev == MG_EV_HTTP_MSG) {
+    auto* hm = static_cast<struct mg_http_message*>(ev_data);
+    if (!options_.serve_dir.empty()) {
+      struct mg_http_serve_opts opts = {.root_dir = options_.serve_dir.c_str()};
+      mg_http_serve_dir(c, hm, &opts);
+      LOGI("serve dir:%s, uri:%.*s", options_.serve_dir.c_str(),
+           (int)hm->uri.len, hm->uri.buf);
     }
+  }
 }
 
 void HttpServer::InitLoop() {

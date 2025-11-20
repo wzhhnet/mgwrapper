@@ -26,6 +26,18 @@
 #include <string_view>
 #include <functional>
 
+#ifndef LOGE
+#define LOGE(...) MG_ERROR((__VA_ARGS__))
+#endif
+#ifndef LOGW
+#define LOGW(...) MG_WARNING((__VA_ARGS__))
+#endif
+#ifndef LOGI
+#define LOGI(...) MG_INFO((__VA_ARGS__))
+#endif
+#ifndef LOGD
+#define LOGD(...) MG_DEBUG((__VA_ARGS__))
+#endif
 
 namespace mg {
 

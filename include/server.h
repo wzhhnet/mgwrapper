@@ -32,6 +32,7 @@ using MqttSrvBase = IServer<MqttSrvOptions>;
 
 struct HttpSrvOptions : Options<HttpSrvBase> {
   using Ptr = std::shared_ptr<HttpSrvOptions>;
+  std::string serve_dir; // can not use .. for relative path
   //TODO
   OnHttpMessage<HttpSrvBase> on_message;
 };
@@ -52,6 +53,10 @@ class HttpServer : public HttpSrvBase {
 
  private:
   virtual void InitLoop() override;
+  virtual void UninitLoop() override {
+    ILoop::UninitLoop();
+    LOGI("HttpServer UninitLoop");
+  }
 
 };
 

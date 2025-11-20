@@ -77,9 +77,10 @@ class IServer : public ILoop {
     mg_mgr_poll(&mgr_, 50);
     if (Stopped()) {
       if (mgr_.conns == NULL)
-        return true;
+        return false;  // exit loop
+      Flush();
     }
-    return false;
+    return true;
   }
 
  protected:

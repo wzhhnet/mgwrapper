@@ -31,6 +31,7 @@
 #endif
 
 #include "client.h"
+#include "server.h"
 
 using namespace mg;
 
@@ -48,21 +49,22 @@ TEST_F(ConnectTest, Socket) {
   std::mutex cv_mtx;
   IClient client;
   ConnectOptions opt = {.url = "tcpbin.com:4242",
-                 .on_read =
-                     [&](IConnect* c, std::string_view msg) {
-                       LOGI("on_message body:%.*s", msg.size(), msg.data());
-                       cv.notify_all();
-                     },
-                 .on_close =
-                     [&](IConnect* c, std::string_view cause) {
-                       LOGI("on_close:%s", cause.data());
-                     },
-                 .on_connect =
-                     [](IConnect* c) {
-                       LOGI("on_connect");
-                       auto r = c->Send("this is a tcp request\n");
-                       LOGI("r = %d", r);
-                     }};
+                        .on_read =
+                            [&](IConnect* c, std::string_view msg) {
+                              LOGI("on_message body:%.*s", msg.size(),
+                                   msg.data());
+                              cv.notify_all();
+                            },
+                        .on_close =
+                            [&](IConnect* c, std::string_view cause) {
+                              LOGI("on_close:%s", cause.data());
+                            },
+                        .on_connect =
+                            [](IConnect* c) {
+                              LOGI("on_connect");
+                              auto r = c->Send("this is a tcp request\n");
+                              LOGI("r = %d", r);
+                            }};
   client.Create<Socket>(std::move(opt));
   std::unique_lock<std::mutex> lk(cv_mtx);
   cv.wait_for(lk, std::chrono::seconds(10));
@@ -205,6 +207,17 @@ TEST_F(ConnectTest, MqttManualSubscribe) {
   client.Create<MqttConnect>(std::move(opt));
   std::unique_lock<std::mutex> lk(cv_mtx);
   cv.wait_for(lk, std::chrono::seconds(5));
+}
+
+TEST_F(ConnectTest, StaticHttpServer) {
+  std::condition_variable cv;
+  std::mutex cv_mtx;
+  HttpSrvOptions opts;
+  opts.url = "http://0.0.0.0:8000";
+  opts.serve_dir = "./web_root";
+  HttpServer server(std::move(opts));
+  std::unique_lock<std::mutex> lk(cv_mtx);
+  cv.wait_for(lk, std::chrono::seconds(60));
 }
 
 }  // namespace test

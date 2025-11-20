@@ -35,4 +35,10 @@ endif ()
 if (ENABLE_TEST)
     add_executable("mgtest" test.cc)
     target_link_libraries("mgtest" ${PROJECT_NAME} gtest)
+    add_custom_command(
+    TARGET ${PROJECT_NAME} POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+            ${CMAKE_SOURCE_DIR}/web_root
+            ${CMAKE_BINARY_DIR}/web_root
+)
 endif ()
