@@ -20,7 +20,6 @@
  */
 
 #include "connect.h"
-#include "mongoose.h"
 
 namespace mg {
 
@@ -80,7 +79,7 @@ HttpConnect::HttpConnect(HttpConnectOptions options)
 }
 
 void HttpConnect::Handler(int ev, void* ev_data) {
-  if (ev == MG_EV_CONNECT) {
+  if (ev == MG_EV_USER_READY && !options_.on_ready) {
     Request();
   } else if (ev == MG_EV_HTTP_MSG && options_.on_message) {
     auto* hm = static_cast<struct mg_http_message*>(ev_data);
@@ -118,11 +117,6 @@ void HttpConnect::Request() {
   struct mg_str host = mg_url_host(options_.url.c_str());
   const char* uri = mg_url_uri(options_.url.c_str());
   auto hstr = ParseHeaders();
-  if (mg_url_is_ssl(options_.url.c_str())) {
-    struct mg_tls_opts opts = {.ca = mg_unpacked(options_.cert.c_str()),
-                               .name = host};
-    mg_tls_init(c, &opts);
-  }
   mg_printf(c,
             "%s %s HTTP/1.0\r\n"  // method uri
             "Host: %.*s\r\n"      // host

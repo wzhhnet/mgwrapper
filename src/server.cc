@@ -20,7 +20,6 @@
  */
 
 #include "server.h"
-#include "mongoose.h"
 
 namespace mg {
 

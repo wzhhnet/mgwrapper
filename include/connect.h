@@ -35,7 +35,7 @@ struct HttpConnectOptions : ConnectOptions {
   HttpHeaders headers;
   std::string body;
   std::string file;
-  std::string cert;
+
   OnHttpMessage<IConnect> on_message;
 };
 
@@ -44,7 +44,6 @@ struct MqttConnectOptions : ConnectOptions {
   uint8_t qos;
   std::string user;
   std::string pass;
-  std::string cert;
   std::vector<std::string> topics;
   OnMqttOpen<IConnect> on_mqtt_open;
   OnMqttMessage<IConnect> on_message;

@@ -26,19 +26,6 @@
 #include <string_view>
 #include <functional>
 
-#ifndef LOGE
-#define LOGE(...) MG_ERROR((__VA_ARGS__))
-#endif
-#ifndef LOGW
-#define LOGW(...) MG_WARNING((__VA_ARGS__))
-#endif
-#ifndef LOGI
-#define LOGI(...) MG_INFO((__VA_ARGS__))
-#endif
-#ifndef LOGD
-#define LOGD(...) MG_DEBUG((__VA_ARGS__))
-#endif
-
 namespace mg {
 
 using HttpHeaders = std::map<std::string, std::string>;
@@ -55,16 +42,13 @@ struct MqttMessage {
 };
 
 template <class T>
-using OnOpen = std::function<void(T*)>;
-
-template <class T>
 using OnClose = std::function<void(T*, std::string_view)>;
 
 template <class T>
 using OnRead = std::function<void(T*, std::string_view)>;
 
 template <class T>
-using OnConnect = std::function<void(T*)>;
+using OnReady = std::function<void(T*)>;
 
 template <class T>
 using OnMqttOpen = std::function<void(T*)>;
@@ -80,11 +64,13 @@ template <class T>
 struct Options {
   using Ptr = std::shared_ptr<Options<T>>;
   std::string url;
+  std::string ca;
+  std::string cert;
+  std::string key;
   uint32_t timeout; // timeout of connection, milliseconds
-  OnOpen<T> on_open;
-  OnRead<T> on_read;
-  OnClose<T> on_close;
-  OnConnect<T> on_connect;
+  OnRead<T> on_read; // data received
+  OnClose<T> on_close; // connection closed
+  OnReady<T> on_ready; // connection established
 };
 
 }

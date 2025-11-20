@@ -59,9 +59,9 @@ TEST_F(ConnectTest, Socket) {
                             [&](IConnect* c, std::string_view cause) {
                               LOGI("on_close:%s", cause.data());
                             },
-                        .on_connect =
+                        .on_ready =
                             [](IConnect* c) {
-                              LOGI("on_connect");
+                              LOGI("on_ready");
                               auto r = c->Send("this is a tcp request\n");
                               LOGI("r = %d", r);
                             }};
@@ -115,7 +115,7 @@ TEST_F(ConnectTest, HttpPost) {
   opt.url = "https://httpbin.org/post";
   opt.headers = {{"Content-Type", "application/json"},
                  {"Content-Length", std::to_string(opt.body.size())}};
-  opt.cert = "/etc/ssl/certs/ca-certificates.crt";
+  opt.ca = "/etc/ssl/certs/ca-certificates.crt";
   opt.on_close = [&](IConnect* c, std::string_view cause) {
     LOGI("on_close:%s", cause.data());
     cv.notify_all();
@@ -135,7 +135,7 @@ TEST_F(ConnectTest, HttpPostFile) {
   IClient client;
   HttpConnectOptions opt = {.method = "POST"};
   opt.url = "https://httpbin.org/post";
-  opt.cert = "/etc/ssl/certs/ca-certificates.crt";
+  opt.ca = "/etc/ssl/certs/ca-certificates.crt";
   opt.file = "./CMakeCache.txt";
   opt.on_close = [&](IConnect* c, std::string_view cause) {
     LOGI("on_close:%s", cause.data());
@@ -156,7 +156,7 @@ TEST_F(ConnectTest, MqttAutoSubscribe) {
   IClient client;
   MqttConnectOptions opt{};
   opt.url = "mqtt://broker.hivemq.com:1883";
-  opt.cert = "/etc/ssl/certs/ca-certificates.crt";
+  opt.ca = "/etc/ssl/certs/ca-certificates.crt";
   opt.topics = {"mg/123/rx", "mg/123/tx"};
   opt.on_close = [&](IConnect* c, std::string_view cause) {
     LOGI("on_close:%s", cause.data());
@@ -183,7 +183,7 @@ TEST_F(ConnectTest, MqttManualSubscribe) {
   MqttConnectOptions opt{};
   opt.timeout = 3000;
   opt.url = "mqtt://broker.hivemq.com:1883";
-  opt.cert = "/etc/ssl/certs/ca-certificates.crt";
+  opt.ca = "/etc/ssl/certs/ca-certificates.crt";
   opt.on_close = [&](IConnect* c, std::string_view cause) {
     LOGI("on_close:%s", cause.data());
     cv.notify_all();

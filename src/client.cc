@@ -20,7 +20,7 @@
  */
 
 #include "client.h"
-#include "mongoose.h"
+#include "common.h"
 
 namespace mg {
 

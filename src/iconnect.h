@@ -23,7 +23,7 @@
 #include <memory>
 #include <string>
 #include <string_view>
-#include "mongoose.h"
+#include "common.h"
 
 namespace mg {
 
@@ -70,15 +70,20 @@ class TcpConnect : public IConnect {
   }
 
  protected:
+  void InitTls() {
+    struct mg_tls_opts opts = {.ca = mg_unpacked(options_.ca.c_str()),
+                               .cert = mg_unpacked(options_.cert.c_str()),
+                               .key = mg_unpacked(options_.key.c_str()),
+                               .name = mg_url_host(options_.url.c_str())};
+    mg_tls_init(mgc_, &opts);
+  }
+
   void Handler(int ev, void* ev_data) override {
     switch (ev) {
       case MG_EV_ERROR:
         cause_ = static_cast<const char*>(ev_data);
         break;
       case MG_EV_OPEN:
-        if (options_.on_open) {
-          options_.on_open(this);
-        }
         if (options_.timeout) {
           StartTimer(options_.timeout, MG_TIMER_RUN_NOW);
         }
@@ -101,9 +106,20 @@ class TcpConnect : public IConnect {
           mg_iobuf_del(&mgc_->recv, 0, mgc_->recv.len);
         }
         break;
-      case MG_EV_CONNECT:
-        if (options_.on_connect) {
-          options_.on_connect(this);
+      case MG_EV_CONNECT: {
+        if (mg_url_is_ssl(options_.url.c_str())) {
+          InitTls();
+        } else {
+          mg_call(mgc_, MG_EV_USER_READY, this);
+        }
+        break;
+      }
+      case MG_EV_TLS_HS:
+        mg_call(mgc_, MG_EV_USER_READY, this);
+        break;
+      case MG_EV_USER_READY:
+        if (options_.on_ready) {
+          options_.on_ready(this);
         }
         break;
       default:
